@@ -1,37 +1,39 @@
-# ZPD1203 Linux 5.10.240 · Test #25
+# ZPD1203 Linux 5.10.240 · 第 25 次测试版
 
-Linux 5.10.240 for the ZYB ZPD1203 tablet (MediaTek MT6768/MT6769). Test #25 booted Android 12 on the device. Display in landscape, Himax touch support, ADB, Wi-Fi, Bluetooth and battery percentage were verified. The build includes KernelSU and a NEON-accelerated framebuffer bridge.
+适用于 ZYB ZPD1203 平板（联发科 MT6768／MT6769）的 Linux 5.10.240 内核。第 25 次测试版已在实机启动 Android 12，并验证了横屏显示、Himax 触屏驱动、ADB、Wi-Fi、蓝牙和电量百分比。内核集成了 KernelSU，显示桥接使用 NEON 加速像素拷贝。
 
-**Camera is unsupported in Test #25.** USB charging status is also incomplete.
+**本版本不支持相机。** USB 充电状态的上报尚未完成。
 
-Tested kernel release: `5.10.240-zpd1203-@idkwhatismyname123`.
+实测内核版本为 `5.10.240-zpd1203-@idkwhatismyname123`。
 
-## Build the kernel
+## 编译内核
 
-Use an ARM64-capable LLVM toolchain on Linux or WSL2. The tested compiler was Clang 21.1.8. Install the standard Linux kernel build dependencies and the GNU ARM64 and ARM32 cross tools.
+在 Linux 或 WSL2 下准备支持 ARM64 的 LLVM 工具链、Linux 内核编译依赖，以及 GNU ARM64 和 ARM32 交叉编译工具。实测使用的是 Clang 21.1.8。
 
-Provide `Himax_firmware.bin` and `Himax_firmware_e.bin` from your own stock firmware in a local directory, then run from the repository root:
+从自己的原厂固件提取 `Himax_firmware.bin` 和 `Himax_firmware_e.bin`，放在同一目录中。在仓库根目录运行以下命令，并将固件路径替换为实际路径。
 
 ```sh
 git submodule update --init
 HIMAX_FIRMWARE_DIR=/path/to/himax-firmware bash zpd1203/scripts/build-kernel.sh
 ```
 
-The script writes `out-zpd1203/arch/arm64/boot/Image.gz` and `out-zpd1203/arch/arm64/boot/dts/mediatek/mt6768-zpd1203-minimal.dtb`.
+编译生成的内核位于 `out-zpd1203/arch/arm64/boot/Image.gz`，设备树位于 `out-zpd1203/arch/arm64/boot/dts/mediatek/mt6768-zpd1203-minimal.dtb`。
 
-## Build the Android boot image
+## 打包 Android 启动镜像
 
-The source tree includes the Android init wrapper, framebuffer bridge, and packaging scripts under `zpd1203/`. Use your own extracted stock Android 12 boot ramdisk and stock DTBO. Firmware, stock images, device logs and the flashable Test #25 image are kept out of this source repository.
+`zpd1203/` 目录包含 Android 启动包装程序、显示桥接源码和打包脚本。请使用从自己设备的原厂 Android 12 固件提取的启动初始内存盘和原厂 DTBO。仓库提供源码，原厂固件、镜像、设备日志和第 25 次测试版刷机镜像均未上传。
 
-The wireless script builds nine modules against the same kernel. Place the following pinned Motorola sources under `$WIRELESS_DIR/connectivity`. Each repo must be checked out at the revision listed in `zpd1203/scripts/build_wireless.sh`.
+无线构建脚本会针对同一内核编译九个模块。把下列摩托罗拉上游仓库放到 `$WIRELESS_DIR/connectivity` 下的对应位置，并签出 `zpd1203/scripts/build_wireless.sh` 指定的提交。
 
-| Local path | Upstream |
+| 本地路径 | 上游源码 |
 | --- | --- |
-| `common` | [connectivity-common](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-common) |
-| `bt/mt66xx` | [connectivity-bt-mt66xx](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-bt-mt66xx) |
-| `connfem` | [connectivity-connfem](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-connfem) |
-| `wlan/adaptor` | [connectivity-wlan-adaptor](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-wlan-adaptor) |
-| `wlan/core/gen4m` | [connectivity-wlan-core-gen4m](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-wlan-core-gen4m) |
+| `common` | [无线公共驱动](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-common) |
+| `bt/mt66xx` | [蓝牙驱动](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-bt-mt66xx) |
+| `connfem` | [无线射频前端驱动](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-connfem) |
+| `wlan/adaptor` | [Wi-Fi 适配层](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-wlan-adaptor) |
+| `wlan/core/gen4m` | [Wi-Fi 核心驱动](https://github.com/MotorolaMobilityLLC/vendor-mediatek-kernel_modules-connectivity-wlan-core-gen4m) |
+
+从仓库根目录运行以下命令，并替换无线源码和原厂初始内存盘的路径。
 
 ```sh
 export WIRELESS_DIR=/path/to/wireless-source
@@ -47,8 +49,10 @@ KERNEL_IMG="$PWD/out-zpd1203/arch/arm64/boot/Image.gz" \
 bash zpd1203/scripts/verify_boot.sh
 ```
 
-Packaging also needs `fakeroot`, `cpio`, `xz`, `kmod`, `mkbootimg` and `avbtool`. The ramdisk wrapper is intended for Android bring-up with permissive SELinux and debugging enabled.
+打包还需要 `fakeroot`、`cpio`、`xz`、`kmod`、`mkbootimg` 和 `avbtool`。启动镜像用于移植调试，启用了调试功能，并将 SELinux 设置为宽容模式。
 
-## Source provenance
+## 源码来源
 
-This repository contains a snapshot of Motorola Mobility's `kernel-mtk` at commit [f83ca9e95d59](https://github.com/MotorolaMobilityLLC/kernel-mtk/commit/f83ca9e95d5944053603fe7f0663fb21467eb50f) with the Test #25 ZPD1203 board port applied. KernelSU is pinned to v3.3.1 (`0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d`). See the upstream kernel `COPYING` and source-level notices.
+本仓库以摩托罗拉的 `kernel-mtk` 为基线，并应用了 ZPD1203 第 25 次测试版的板级移植改动。 [上游提交 f83ca9e95d59](https://github.com/MotorolaMobilityLLC/kernel-mtk/commit/f83ca9e95d5944053603fe7f0663fb21467eb50f)
+
+KernelSU 固定为 v3.3.1（`0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d`）。许可证详见内核的 `COPYING` 和各源码文件中的声明。
