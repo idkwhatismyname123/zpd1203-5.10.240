@@ -1,0 +1,196 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Minimal Linux 5.10 Device Tree for ZYB ZPD1203 (ZYBPAD / k69v1_64_k419)
+ * Verified SoC: MediaTek MT6769V/CB (hw_code=0x707, MT6768 platform)
+ *
+ * Every address, IRQ, memory range, and display parameter below is derived
+ * directly from stock firmware artifacts in d:\P30510\extracted\ and
+ * d:\P30510\firmware-analysis\expdb_extracted\log_store_0_PL_LK_LOG.txt.
+ * Zero addresses were guessed.
+ */
+
+#include "mt6768.dts"
+#include "zpd1203-stock-battery-profile.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "ZYB ZPD1203 (MT6769V/CB / k69v1_64 Linux 5.10)";
+	compatible = "mediatek,MT6768";
+
+	/*
+	 * Matches LK log_store_0_PL_LK_LOG.txt L2066-2080:
+	 *   device_name: /debug-kinfo, mblock_name: aee_debug_kinfo success
+	 * LK binds reserved-memory:aee_debug_kinfo (0x4d000000, 0x10000) here.
+	 */
+	debug_kinfo: debug-kinfo {
+		compatible = "google,debug-kinfo";
+		status = "okay";
+	};
+
+	/*
+	 * Symbol compatibility targets for stock dtbo_a (dtbo_0.dtb) so LK's
+	 * ufdt_apply_overlay() succeeds during `fastboot boot` without flashing
+	 * or modifying the stock dtbo_a partition. Verified against
+	 * extracted/dts_src/dtbo_0.dts __fixups__ and boot_0.dts __symbols__.
+	 * Intentionally omit `compatible` so no minimal bring-up driver binds.
+	 */
+	lcm: lcm { };
+	flashlights_aw36515: flashlights_aw36515 { };
+	hall: hall { };
+	hall_sensor: hall_sensor { };
+	battery_swell_det: battery_swell_det { };
+	zlt_alsps: zlt_alsps { };
+};
+
+&chosen {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	ranges;
+
+	/*
+	 * Do NOT hardcode ramoops.* here or use CONFIG_CMDLINE_FORCE:
+	 * Stock Preloader reserves pstore at 0x4d010000 (0xe0000, map:0) and
+	 * LK dynamically appends ramoops.mem_address=0x4d010000
+	 * ramoops.mem_size=0xe0000 ramoops.pmsg_size=0x10000
+	 * ramoops.console_size=0x40000 plus androidboot.* to bootargs.
+	 */
+	bootargs = "console=tty0 console=ttyS0,921600n1 root=/dev/ram vmalloc=400M swiotlb=noforce 8250.nr_uarts=2 cgroup.memory=nosocket,nokmem firmware_class.path=/vendor/firmware loop.max_part=7 ignore_loglevel loglevel=8";
+
+	/*
+	 * Early no-UART visual console using LK's live OVL0 layer0 framebuffer.
+	 * Verified from expdb.img PL/LK log (L1336, L1571-1579):
+	 *   mblock_reserve-R[13] framebuffer: start=0x7d350000, size=0x20b0000, map:0
+	 *   OVL0 layer=0: addr=0x7d350000, pitch=4864 (1216*4), 1200x2000, eBGRA8888
+	 *   OVL0 layer=3 (DAL overlay): starts at 0x7dcaa000 (= 0x7d350000 + 0x95a000)
+	 * Test #18's live DT confirms LK injects a no-map reservation for the
+	 * entire 0x20b0000-byte range, including the DAL buffer.
+	 * Requires clk_ignore_unused pd_ignore_unused on cmdline so MMSYS/DSI
+	 * clocks stay alive while DRM is disabled in minimal bring-up.
+	 */
+	framebuffer0: framebuffer@7d350000 {
+		compatible = "simple-framebuffer";
+		reg = <0x0 0x7d350000 0x0 0x0095a000>;
+		width = <1200>;
+		height = <2000>;
+		stride = <4864>;
+		format = "a8r8g8b8";
+		mediatek,zpd1203-lk-display;
+		status = "okay";
+	};
+};
+
+/*
+ * Force MUSB HDRC (0x11200000) into peripheral mode for minimal bring-up so
+ * USB CDC-ACM gadget (/dev/ttyGS0) enumerates immediately on the Windows host
+ * without requiring unported wusb3801 / aw35615 Type-C role-switch drivers.
+ * Verified in drivers/misc/mediatek/usb20/musb_dr.c:461-469.
+ */
+&usb {
+	dr_mode = "peripheral";
+	/delete-property/ usb-role-switch;
+	status = "okay";
+};
+
+/* Stock boot_0.dts L3162 has mmc1 disabled; ZPD1203 boots from eMMC on mmc0. */
+&mmc1 {
+	status = "disabled";
+};
+
+/*
+ * Motorola MT6768 WMT platform/mt6768.c requests these four supplies.
+ * The MT6358 regulator names match stock boot_0.dts and mt6358_6768.dtsi.
+ */
+&consys {
+	vcn18-supply = <&mt_pmic_vcn18_ldo_reg>;
+	vcn28-supply = <&mt_pmic_vcn28_ldo_reg>;
+	vcn33_bt-supply = <&mt_pmic_vcn33_bt_ldo_reg>;
+	vcn33_wifi-supply = <&mt_pmic_vcn33_wifi_ldo_reg>;
+};
+
+/* Use the PMIC gauge without the BSP's MT6370 charging controller. */
+&mtk_gauge {
+	/delete-property/ charger;
+	mediatek,kernel-fuel-gauge;
+};
+
+/*
+ * Stock dtbo_0.dts fragment@64 enables the SPI4 child and supplies its
+ * pinctrl states. Its focaltech,irq-gpio is GPIO6. LK also uses the
+ * overlay's GPIO158 reset line during LCD power-up, so keep it undriven
+ * by the touch driver and use the controller's software reset.
+ */
+&spi4 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	zlt_ts@0 {
+		reg = <0>;
+		status = "disabled";
+		himax,zpd1203-touch;
+		himax,irq-gpio = <&pio 6 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* Keep MTK DRM disabled during minimal simple-framebuffer bring-up. */
+&dispsys_config {
+	status = "disabled";
+};
+
+&dsi0 {
+	status = "disabled";
+};
+
+/*
+ * Disable sub-PMIC nodes not present on ZPD1203 (uses sgm41510 @ i2c5 0x6b).
+ * Also delete MediaTek's typo node `teypc_legacy` in mt6370.dtsi:28 which
+ * duplicates label `mt6370_typec` (used again on `tcpc` at line 109) and breaks
+ * dtc with -@ symbol generation.
+ */
+&mt6370 {
+	status = "disabled";
+	/delete-node/ teypc_legacy;
+};
+
+/* Stock 4.19 ikconfig has CONFIG_MTK_DVFSRC disabled; avoid incompatible 5.10 DVFSRC SMC to stock ATF. */
+&dvfsrc {
+	status = "disabled";
+};
+
+/*
+ * Stock 4.19 Preloader/LK/ATF leaves MT6768 INTPOL (0x0c53a650) uninverted
+ * (stock 4.19 used mtk_sysirq with IRQ_TYPE_LEVEL_LOW / EDGE_FALLING).
+ * Linux 5.10 mt6768.dts routes SPIs directly to &gic as IRQ_TYPE_LEVEL_HIGH.
+ * Program all 97 verified active-low / falling-edge SPI polarity bits derived
+ * from extracted/dts_src/boot_0.dts (0 conflicts vs 30 active-high/rising SPIs)
+ * at of_irq_init() time before any driver calls request_irq().
+ */
+&sysirq {
+	mediatek,intpol-init = <0x00000000 0x00000000 0x00004a04 0x003ffffe
+				0xf01e6de0 0x00014e7b 0x80000808 0x1cedfff7
+				0x387ec02f 0x000000a0>;
+};
+
+/* Prevent regulator_init_complete from powering down LPDDR4 vdram2 at 60s. */
+&mt_pmic_vdram2_ldo_reg {
+	regulator-always-on;
+};
+
+/*
+ * LK jt120wul005 init (lk_a.img, 0x4c432680..0x4c432b60) enables
+ * MT6358 VIBR at 1.8 V. The BSP vibrator requests 2.3-3.2 V on this rail.
+ */
+&mt_pmic_vibr_ldo_reg {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	regulator-always-on;
+};
+
+&regulator_vibrator {
+	status = "disabled";
+};
+
+/* Bind MT6358 vgpu / vsram_gpu regulators required by gpufreq_mt6768.c probe. */
+&gpufreq {
+	vgpu-supply = <&mt_pmic_vgpu_buck_reg>;
+	vsram_gpu-supply = <&mt_pmic_vsram_gpu_ldo_reg>;
+};

@@ -1,0 +1,85 @@
+Subject: [PATCH] gen4m: use fbdev notifications when MTK DRM is unavailable
+
+Choose the provider from the actual kernel configuration. Keep the event
+format and register/unregister calls on the same backend. This allows
+simplefb kernels to retain the existing fbdev notifier implementation.
+
+---
+--- a/os/linux/include/gl_os.h
++++ b/os/linux/include/gl_os.h
+@@ -274,7 +274,9 @@
+ #endif
+ #include <linux/time.h>
+ #include <linux/fb.h>
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE && \
++    IS_REACHABLE(CONFIG_DRM_MEDIATEK) && IS_ENABLED(CONFIG_DRM_MEDIATEK_V2)
++#define WLAN_USE_MTK_DISP_NOTIFIER
+ #include "mtk_disp_notify.h"
+ #endif
+ 
+--- a/os/linux/gl_kal.c
++++ b/os/linux/gl_kal.c
+@@ -8766,7 +8766,7 @@
+ static int wlan_fb_notifier_callback(struct notifier_block
+ 				     *self, unsigned long event, void *data)
+ {
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	int32_t *pData = (int32_t *)data;
+ #else
+ 	struct fb_event *evdata = data;
+@@ -8777,7 +8777,7 @@
+ 
+ 	/* If we aren't interested in this event, skip it immediately */
+ 	if ((event !=
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 		MTK_DISP_EARLY_EVENT_BLANK
+ #else
+ 		FB_EVENT_BLANK
+@@ -8791,7 +8791,7 @@
+ 	}
+ 
+ 
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	blank = *pData;
+ #else
+ 	blank = *(int32_t *)evdata->data;
+@@ -8809,7 +8809,7 @@
+ 	}
+ 
+ 	switch (blank) {
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	case MTK_DISP_BLANK_UNBLANK:
+ #else
+ 	case FB_BLANK_UNBLANK:
+@@ -8817,7 +8817,7 @@
+ 		kalSetPerMonEnable(prGlueInfo);
+ 		wlan_fb_power_down = FALSE;
+ 		break;
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	case MTK_DISP_BLANK_POWERDOWN:
+ #else
+ 	case FB_BLANK_POWERDOWN:
+@@ -8842,7 +8842,7 @@
+ 
+ 	wlan_fb_notifier_priv_data = prGlueInfo;
+ 
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	i4Ret = mtk_disp_notifier_register("wlan_fb_notifier",
+ 			&wlan_fb_notifier);
+ #else
+@@ -8858,7 +8858,7 @@
+ 
+ void kalFbNotifierUnReg(void)
+ {
+-#if KERNEL_VERSION(5, 4, 0) <= CFG80211_VERSION_CODE
++#ifdef WLAN_USE_MTK_DISP_NOTIFIER
+ 	mtk_disp_notifier_unregister(&wlan_fb_notifier);
+ #else
+ 	fb_unregister_client(&wlan_fb_notifier);
