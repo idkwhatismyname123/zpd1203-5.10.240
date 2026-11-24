@@ -1,0 +1,3 @@
+[submodule "external/KernelSU"]
+	path = external/KernelSU
+	url = https://github.com/tiann/KernelSU.git
