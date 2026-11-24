@@ -1,8 +1,8 @@
-# ZPD1203 Linux 5.10.240 · 第 25 次测试版
+# ZPD1203 Linux 5.10.240
 
-适用于 ZYB ZPD1203 平板（联发科 MT6768／MT6769）的 Linux 5.10.240 内核。第 25 次测试版已在实机启动 Android 12，并验证了横屏显示、Himax 触屏驱动、ADB、Wi-Fi、蓝牙和电量百分比。内核集成了 KernelSU，显示桥接使用 NEON 加速像素拷贝。
+适用于 ZYB ZPD1203 平板（联发科 MT6768／MT6769）的 Linux 5.10.240 内核。已在实机启动 Android 12，并验证了横屏显示、Himax 触屏驱动、ADB、Wi-Fi、蓝牙和电量百分比。内核集成了 KernelSU，显示桥接使用 NEON 加速像素拷贝。
 
-**本版本不支持相机。** USB 充电状态的上报尚未完成。
+**相机暂不支持。** USB 充电状态的上报尚未完成。
 
 实测内核版本为 `5.10.240-zpd1203-@idkwhatismyname123`。
 
@@ -21,7 +21,7 @@ HIMAX_FIRMWARE_DIR=/path/to/himax-firmware bash zpd1203/scripts/build-kernel.sh
 
 ## 打包 Android 启动镜像
 
-`zpd1203/` 目录包含 Android 启动包装程序、显示桥接源码和打包脚本。请使用从自己设备的原厂 Android 12 固件提取的启动初始内存盘和原厂 DTBO。仓库提供源码，原厂固件、镜像、设备日志和第 25 次测试版刷机镜像均未上传。
+`zpd1203/` 目录包含 Android 启动包装程序、显示桥接源码和打包脚本。请使用从自己设备的原厂 Android 12 固件提取的启动初始内存盘和原厂 DTBO。仓库提供源码，原厂固件、镜像、设备日志和刷机镜像均未上传。
 
 无线构建脚本会针对同一内核编译九个模块。把下列摩托罗拉上游仓库放到 `$WIRELESS_DIR/connectivity` 下的对应位置，并签出 `zpd1203/scripts/build_wireless.sh` 指定的提交。
 
@@ -53,6 +53,6 @@ bash zpd1203/scripts/verify_boot.sh
 
 ## 源码来源
 
-本仓库以摩托罗拉的 `kernel-mtk` 为基线，并应用了 ZPD1203 第 25 次测试版的板级移植改动。 [上游提交 f83ca9e95d59](https://github.com/MotorolaMobilityLLC/kernel-mtk/commit/f83ca9e95d5944053603fe7f0663fb21467eb50f)
+本仓库以摩托罗拉的 `kernel-mtk` 为基线，并应用了 ZPD1203 的板级移植改动。 [上游提交 f83ca9e95d59](https://github.com/MotorolaMobilityLLC/kernel-mtk/commit/f83ca9e95d5944053603fe7f0663fb21467eb50f)
 
 KernelSU 固定为 v3.3.1（`0c0fdb960178fa12d80d6cbcfdcb6ad8be6a865d`）。许可证详见内核的 `COPYING` 和各源码文件中的声明。
